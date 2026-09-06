@@ -51,53 +51,54 @@
     }
   }
 
-  function scan(root) {
-    check(root);
-    root.querySelectorAll?.('*').forEach(check);
+  // Everything that still needs a getComputedStyle check. Populated in bulk
+  // (querySelectorAll only - cheap) but drained through processChecks()
+  // which respects the browser's idle time budget, so a page that dumps a
+  // huge subtree at once (a big Livewire re-render, a streamed deploy log
+  // on Forge) can't force one giant synchronous style-recalc pass - that's
+  // literally what froze the tab before.
+  const toCheck = [];
+
+  function enqueueSubtree(root) {
+    if (!root) return;
+    toCheck.push(root);
+    root.querySelectorAll?.('*').forEach((el) => toCheck.push(el));
   }
 
-  function refreshAndScan() {
-    riskyNames = collectRiskyNames();
-    if (riskyNames.size) scan(document.documentElement);
+  function processChecks(deadline) {
+    while (toCheck.length) {
+      check(toCheck.pop());
+      if (deadline && deadline.timeRemaining() <= 0) break;
+    }
   }
 
-  refreshAndScan();
-
-  // Sites like YouTube mutate the DOM constantly (SPA nav, live UI updates).
-  // Coalesce bursts into one debounced pass instead of re-scanning on every
-  // single mutation record - the sync per-mutation version was expensive
-  // enough (full re-scan on every <style>/<link> insertion) to itself
-  // block the page.
-  // childList additions need a full subtree scan (new, unseen elements).
-  // attribute changes only need the single changed element re-checked -
-  // NOT its subtree, since a class/style flip on one big container was
-  // triggering a full re-scan of everything under it, over and over,
-  // on a page (YouTube) that flips container classes constantly.
-  const pendingScan = new Set();
-  const pendingCheck = new Set();
   let styleChanged = false;
   let scheduled = false;
 
-  function flush() {
+  function flush(deadline) {
     scheduled = false;
     if (styleChanged) {
       riskyNames = collectRiskyNames();
       styleChanged = false;
     }
     if (riskyNames.size) {
-      for (const node of pendingScan) scan(node);
-      for (const node of pendingCheck) check(node);
+      processChecks(deadline);
+    } else {
+      toCheck.length = 0;
     }
-    pendingScan.clear();
-    pendingCheck.clear();
+    if (toCheck.length) schedule(); // ran out of idle time - finish next slice
   }
 
   function schedule() {
     if (scheduled) return;
     scheduled = true;
-    const idle = window.requestIdleCallback || ((cb) => setTimeout(cb, 300));
+    const idle = window.requestIdleCallback || ((cb) => setTimeout(() => cb({ timeRemaining: () => 5, didTimeout: true }), 300));
     idle(flush, { timeout: 1000 });
   }
+
+  riskyNames = collectRiskyNames();
+  enqueueSubtree(document.documentElement);
+  schedule();
 
   new MutationObserver((mutations) => {
     for (const m of mutations) {
@@ -105,10 +106,13 @@
         m.addedNodes.forEach((node) => {
           if (node.nodeType !== 1) return;
           if (node.tagName === 'STYLE' || node.tagName === 'LINK') styleChanged = true;
-          pendingScan.add(node);
+          enqueueSubtree(node);
         });
       } else {
-        pendingCheck.add(m.target);
+        // attribute change: only the target itself needs re-checking, not
+        // its subtree - descendants' own animations aren't affected by an
+        // ancestor's class/style flip.
+        toCheck.push(m.target);
       }
     }
     schedule();
