@@ -34,7 +34,17 @@ distinction was dropped: every infinite animation gets paused now.
   of nodes at once (virtualized widgets like the Monaco editor behind
   Forge's deploy log) is blacklisted from further scans after its first
   oversized batch, since re-scanning a live log on every update was itself
-  expensive enough to freeze the page.
+  expensive enough to freeze the page. It also tracks every `<svg>` on the
+  page and calls the native `pauseAnimations()`/`unpauseAnimations()` on
+  each - SMIL animations (`<animate>`, `<animateTransform>`, common in
+  loading-spinner icons) don't set a CSS `animation-name` at all, so
+  `check()` alone can't see them; a Forge deploy-toast spinner using
+  `<animate attributeName="d" ...>` to morph an SVG path confirmed this
+  blind spot.
+
+A `harness/` folder holds a Playwright-based regression check for exactly
+that SMIL case (`bun run check-smil.mjs`) plus a cross-tab jank matrix
+(`bun run run.mjs`) — see `harness/README.md`.
 
 No data leaves the browser; `<all_urls>` is required only so the throttle
 script can run on whatever site has the offending animation. Set `DEBUG =

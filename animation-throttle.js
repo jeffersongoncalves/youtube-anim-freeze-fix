@@ -41,6 +41,40 @@
     el.classList.add(MARK);
   }
 
+  // SMIL animations (<animate>, <animateTransform>, ...) never set a CSS
+  // animation-name, so check() can't see them - confirmed on a Forge
+  // loading spinner using <animate attributeName="d" ...>, which morphs
+  // an SVG path shape every frame. SVGSVGElement.pauseAnimations() /
+  // unpauseAnimations() pause every SMIL animation inside that <svg> in
+  // one native call - no need to track individual <animate> elements.
+  const svgRoots = new Set();
+  let videoElsewhere = false;
+
+  function collectSvgRoots(root) {
+    if (root.tagName === 'svg') addSvgRoot(root);
+    root.querySelectorAll?.('svg').forEach(addSvgRoot);
+  }
+
+  function addSvgRoot(svg) {
+    if (svgRoots.has(svg)) return;
+    svgRoots.add(svg);
+    if (videoElsewhere) {
+      try {
+        svg.pauseAnimations();
+      } catch {}
+    }
+  }
+
+  function setVideoElsewhere(playing) {
+    videoElsewhere = playing;
+    document.documentElement.classList.toggle(FLAG, playing);
+    for (const svg of svgRoots) {
+      try {
+        playing ? svg.pauseAnimations() : svg.unpauseAnimations();
+      } catch {}
+    }
+  }
+
   const toCheck = [];
 
   // Virtualized widgets (Monaco editor, infinite-scroll logs, ...) replace
@@ -94,7 +128,8 @@
   }
 
   enqueueSubtree(document.documentElement);
-  log('initial queue size', toCheck.length);
+  collectSvgRoots(document.documentElement);
+  log('initial queue size', toCheck.length, 'svg roots', svgRoots.size);
   schedule();
 
   new MutationObserver((mutations) => {
@@ -112,6 +147,7 @@
         if (node.nodeType !== 1) return;
         added++;
         enqueueSubtree(node);
+        collectSvgRoots(node);
       });
     }
     if (added > 50) log(`mutation batch added ${added} nodes, queue now ${toCheck.length}`);
@@ -124,7 +160,7 @@
   chrome.runtime?.onMessage?.addListener((msg) => {
     if (msg?.type === 'yt-playing-changed') {
       log('yt-playing-changed', msg.playing);
-      document.documentElement.classList.toggle(FLAG, !!msg.playing);
+      setVideoElsewhere(!!msg.playing);
     }
   });
 })();

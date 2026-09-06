@@ -6,3 +6,7 @@ Thumbs.db
 
 # Build artifacts
 *.zip
+
+# Harness deps + auto-generated (see harness/sync-extension.mjs)
+harness/node_modules/
+harness/test-extension/

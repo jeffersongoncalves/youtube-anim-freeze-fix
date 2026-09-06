@@ -1,0 +1,52 @@
+<!doctype html>
+<html>
+<head><title>video-tab</title></head>
+<body>
+<video id="v" autoplay muted playsinline></video>
+<canvas id="c" width="320" height="180" style="display:none"></canvas>
+<script>
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+  let hue = 0;
+  function drawFrame() {
+    hue = (hue + 2) % 360;
+    ctx.fillStyle = `hsl(${hue},80%,50%)`;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    requestAnimationFrame(drawFrame);
+  }
+  drawFrame();
+
+  const stream = canvas.captureStream(30);
+  const video = document.getElementById('v');
+  video.srcObject = stream;
+  video.play();
+
+  // Jank probe: independent of the extension, records raw rAF delivery
+  // timestamps in THIS tab while the other (stressor) tab does its thing.
+  window.__frameTimes = [];
+  window.__probing = false;
+  function probe(ts) {
+    window.__frameTimes.push(ts);
+    if (window.__probing) requestAnimationFrame(probe);
+  }
+
+  window.__startProbe = () => {
+    window.__frameTimes = [];
+    window.__probing = true;
+    requestAnimationFrame(probe);
+  };
+
+  window.__stopProbe = () => {
+    window.__probing = false;
+    const times = window.__frameTimes;
+    const gaps = [];
+    for (let i = 1; i < times.length; i++) gaps.push(times[i] - times[i - 1]);
+    const maxGapMs = gaps.length ? Math.max(...gaps) : 0;
+    const longFrames = gaps.filter((g) => g > 50).length; // >50ms = several dropped frames at 60fps
+    const veryLongFrames = gaps.filter((g) => g > 200).length; // visible stutter
+    const totalMs = times.length ? times[times.length - 1] - times[0] : 0;
+    return { frames: times.length, maxGapMs, longFrames, veryLongFrames, totalMs };
+  };
+</script>
+</body>
+</html>

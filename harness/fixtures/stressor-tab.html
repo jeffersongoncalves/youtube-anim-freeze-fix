@@ -1,0 +1,126 @@
+<!doctype html>
+<html>
+<head>
+<title>stressor-tab</title>
+<style>
+  @keyframes paint-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(255,0,0,0.6); }
+    50% { box-shadow: 0 0 0 20px rgba(255,0,0,0); }
+  }
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+  .paint-x { display:inline-block; width:20px; height:20px; margin:2px; background:red; animation: paint-pulse 1s infinite; }
+  .spin-x { display:inline-block; width:20px; height:20px; margin:2px; background:blue; animation: spin 1s linear infinite; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+  function svgSmilSpinner() {
+    // Same shape as the confirmed Forge spinner: <animate> morphing a
+    // path's `d` attribute - a SMIL animation, invisible to
+    // getComputedStyle().animationName.
+    const wrap = document.createElement('div');
+    wrap.innerHTML = `<svg id="smil-svg" viewBox="0 0 16 36" width="40" height="90">
+      <path id="smil-path" d="M8 34L8 27.6176" stroke="black" stroke-width="1.5">
+        <animate attributeName="d" values="M8 34L8 27.6176;M8 9L8 2.61765" begin="0s" dur="1.4s" repeatCount="indefinite" fill="freeze" calcMode="linear" keyTimes="0;1"/>
+      </path>
+    </svg>`;
+    root.appendChild(wrap);
+  }
+</script>
+<script>
+  const mode = new URLSearchParams(location.search).get('mode') || 'none';
+  const root = document.getElementById('root');
+  const timers = [];
+
+  function nElements(cls, n) {
+    for (let i = 0; i < n; i++) {
+      const el = document.createElement('div');
+      el.className = cls;
+      root.appendChild(el);
+    }
+  }
+
+  function domChurnBig() {
+    // Mimics Monaco: one container, whole subtree replaced at once.
+    const container = document.createElement('div');
+    root.appendChild(container);
+    timers.push(setInterval(() => {
+      container.innerHTML = '';
+      const frag = document.createDocumentFragment();
+      for (let i = 0; i < 2500; i++) {
+        const line = document.createElement('div');
+        line.textContent = 'log line ' + i;
+        frag.appendChild(line);
+      }
+      container.appendChild(frag);
+    }, 200));
+  }
+
+  function domChurnSmall() {
+    // Many independent containers, small batches each, at ~60fps -
+    // no single mutation record is large enough to trip a size-based
+    // "noisy container" blacklist.
+    const containers = [];
+    for (let i = 0; i < 20; i++) {
+      const c = document.createElement('div');
+      root.appendChild(c);
+      containers.push(c);
+    }
+    timers.push(setInterval(() => {
+      for (const c of containers) {
+        if (c.children.length > 30) c.removeChild(c.firstChild);
+        const el = document.createElement('span');
+        el.textContent = 'x';
+        c.appendChild(el);
+      }
+    }, 16));
+  }
+
+  function waapiSpin(n) {
+    for (let i = 0; i < n; i++) {
+      const el = document.createElement('div');
+      el.style.cssText = 'display:inline-block;width:20px;height:20px;margin:2px;background:green;';
+      root.appendChild(el);
+      el.animate([{ transform: 'rotate(0deg)' }, { transform: 'rotate(360deg)' }], {
+        duration: 1000,
+        iterations: Infinity,
+      });
+    }
+  }
+
+  switch (mode) {
+    case 'css-paint':
+      nElements('paint-x', 50);
+      break;
+    case 'css-transform':
+      nElements('spin-x', 50);
+      break;
+    case 'waapi':
+      waapiSpin(50);
+      break;
+    case 'svg-smil':
+      svgSmilSpinner();
+      break;
+    case 'dom-big':
+      domChurnBig();
+      break;
+    case 'dom-small':
+      domChurnSmall();
+      break;
+    case 'combo':
+      nElements('paint-x', 50);
+      domChurnSmall();
+      break;
+    case 'none':
+    default:
+      break;
+  }
+
+  window.__mode = mode;
+</script>
+</body>
+</html>
