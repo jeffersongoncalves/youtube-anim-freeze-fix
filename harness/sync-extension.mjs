@@ -4,13 +4,14 @@
 // against a fixture instead of live youtube.com.
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { copyFileSync, readFileSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const extDir = path.join(__dirname, '..');
 const testExtDir = path.join(__dirname, 'test-extension');
 
 export function syncExtension({ debug = false } = {}) {
+  mkdirSync(testExtDir, { recursive: true });
   for (const file of ['background.js', 'youtube-detector.js', 'animation-throttle.js']) {
     copyFileSync(path.join(extDir, file), path.join(testExtDir, file));
   }
