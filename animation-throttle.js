@@ -73,6 +73,24 @@
 
   const toCheck = [];
 
+  // Virtualized widgets (Monaco editor, infinite-scroll logs, ...) replace
+  // large chunks of their own DOM on every redraw - each redraw looked like
+  // a brand new subtree needing a full scan, so a live log view re-queued
+  // thousands of nodes per second forever. After a container repeats a
+  // large mutation a few times, stop scanning its subtree: whatever
+  // animation it has (if any) was already seen in the first couple passes.
+  const NOISY_BATCH_SIZE = 200;
+  const NOISY_STRIKES = 3;
+  const strikes = new WeakMap();
+  const noisyParents = new WeakSet();
+
+  function isNoisy(parent) {
+    for (let n = parent; n; n = n.parentElement) {
+      if (noisyParents.has(n)) return true;
+    }
+    return false;
+  }
+
   function enqueueSubtree(root) {
     if (!root || toCheck.length >= MAX_QUEUE) return;
     toCheck.push(root);
@@ -127,6 +145,18 @@
   new MutationObserver((mutations) => {
     let added = 0;
     for (const m of mutations) {
+      if (!m.addedNodes.length) continue;
+      if (noisyParents.has(m.target)) continue;
+      if (m.addedNodes.length >= NOISY_BATCH_SIZE) {
+        const count = (strikes.get(m.target) || 0) + 1;
+        strikes.set(m.target, count);
+        if (count >= NOISY_STRIKES) {
+          noisyParents.add(m.target);
+          log('blacklisting noisy container after repeated large redraws', m.target);
+          continue;
+        }
+      }
+      if (isNoisy(m.target)) continue;
       m.addedNodes.forEach((node) => {
         if (node.nodeType !== 1) return;
         added++;
