@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "YouTube Animation Freeze Fix",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Fixes YouTube video freezing/buffering caused by paint-heavy CSS animations (box-shadow, filter, width, etc.) looping infinitely on any open tab.",
   "permissions": ["tabs"],
   "host_permissions": ["<all_urls>"],
