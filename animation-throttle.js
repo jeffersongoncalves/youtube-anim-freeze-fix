@@ -80,7 +80,10 @@
   // large mutation a few times, stop scanning its subtree: whatever
   // animation it has (if any) was already seen in the first couple passes.
   const NOISY_BATCH_SIZE = 200;
-  const NOISY_STRIKES = 3;
+  const NOISY_STRIKES = 1; // blacklist on the very first oversized batch - a
+  // fresh Monaco/log instance is created per deploy, so waiting for repeat
+  // offenses meant paying the full scan cost again at the start of every
+  // deploy, which is exactly when the freeze was reported.
   const strikes = new WeakMap();
   const noisyParents = new WeakSet();
 
