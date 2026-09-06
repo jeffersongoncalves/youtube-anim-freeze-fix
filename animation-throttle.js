@@ -138,7 +138,10 @@
     schedule();
   }).observe(document.documentElement, { childList: true, subtree: true });
 
-  chrome.runtime.onMessage.addListener((msg) => {
+  // Orphaned instance from before an extension reload - chrome.runtime is
+  // gone and this tab can't be reached anymore; only a full page reload
+  // gets it a working context again.
+  chrome.runtime?.onMessage?.addListener((msg) => {
     if (msg?.type === 'yt-playing-changed') {
       log('yt-playing-changed', msg.playing);
       document.documentElement.classList.toggle(FLAG, !!msg.playing);

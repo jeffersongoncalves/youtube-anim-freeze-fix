@@ -4,8 +4,15 @@
   function hook(video) {
     if (video.dataset.ytFixHooked) return;
     video.dataset.ytFixHooked = '1';
-    const report = () =>
-      chrome.runtime.sendMessage({ type: 'yt-video-state', playing: !video.paused && !video.ended });
+    const report = () => {
+      try {
+        chrome.runtime?.sendMessage?.({ type: 'yt-video-state', playing: !video.paused && !video.ended });
+      } catch {
+        // Extension was reloaded/updated - this tab's content script is an
+        // orphaned instance and can no longer reach the background worker.
+        // Only a full reload of this tab fixes it.
+      }
+    };
     ['play', 'playing', 'pause', 'ended', 'waiting'].forEach((evt) => video.addEventListener(evt, report));
     report();
   }
