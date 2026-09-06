@@ -1,0 +1,13 @@
+{
+  "manifest_version": 3,
+  "name": "YouTube Animation Freeze Fix",
+  "version": "1.0.0",
+  "description": "Pauses page CSS animations (e.g. editorial-pulse) while a YouTube video is playing, fixing main-thread jank that freezes/buffers video playback.",
+  "content_scripts": [
+    {
+      "matches": ["*://*.youtube.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
