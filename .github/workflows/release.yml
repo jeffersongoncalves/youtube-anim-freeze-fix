@@ -30,10 +30,7 @@ jobs:
       - name: Build ZIP (extension files only)
         run: |
           zip -r "youtube-anim-freeze-fix-${{ steps.manifest.outputs.version }}.zip" \
-            manifest.json \
-            background.js \
-            youtube-detector.js \
-            animation-throttle.js
+            manifest.json *.js
 
       - name: Show ZIP contents
         run: unzip -l "youtube-anim-freeze-fix-${{ steps.manifest.outputs.version }}.zip"
