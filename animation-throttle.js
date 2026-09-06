@@ -3,16 +3,32 @@
 // paint-triggering property (box-shadow, filter, width, background, ...).
 // Animations that only touch transform/opacity are compositor-only and
 // left alone - they don't cause the contention.
+//
+// Deliberately narrow scope after repeated self-inflicted freezes on
+// heavy, fast-mutating pages (YouTube, Forge deploy logs):
+// - Only `childList` is observed, not `attributes`. Attribute churn
+//   (progress bars, live class toggles) fires far more often than new
+//   elements and isn't how this kind of pulse animation gets applied in
+//   practice - it's set once when the element is created.
+// - No `all_frames` - only the top document is scanned.
+// - The keyframes-to-properties scan re-runs at most every 3s even if
+//   style/link tags keep pouring in, since walking a big Tailwind
+//   stylesheet on every single insertion was itself the freeze.
+// - The scan queue is capped; under extreme DOM churn we skip the rest
+//   of that burst rather than let the queue grow unbounded.
 (function () {
   const MARK = 'yt-fix-throttled';
   const FLAG = 'yt-fix-video-elsewhere';
   const SAFE_PROPS = new Set(['transform', 'opacity']);
+  const MAX_QUEUE = 3000;
+  const RISKY_REFRESH_MIN_MS = 3000;
 
   const styleTag = document.createElement('style');
   styleTag.textContent = `html.${FLAG} .${MARK} { animation-play-state: paused !important; }`;
   document.documentElement.appendChild(styleTag);
 
   let riskyNames = new Set();
+  let lastRiskyRefresh = 0;
 
   function collectRiskyNames() {
     const risky = new Set();
@@ -51,18 +67,14 @@
     }
   }
 
-  // Everything that still needs a getComputedStyle check. Populated in bulk
-  // (querySelectorAll only - cheap) but drained through processChecks()
-  // which respects the browser's idle time budget, so a page that dumps a
-  // huge subtree at once (a big Livewire re-render, a streamed deploy log
-  // on Forge) can't force one giant synchronous style-recalc pass - that's
-  // literally what froze the tab before.
   const toCheck = [];
 
   function enqueueSubtree(root) {
-    if (!root) return;
+    if (!root || toCheck.length >= MAX_QUEUE) return;
     toCheck.push(root);
-    root.querySelectorAll?.('*').forEach((el) => toCheck.push(el));
+    root.querySelectorAll?.('*').forEach((el) => {
+      if (toCheck.length < MAX_QUEUE) toCheck.push(el);
+    });
   }
 
   function processChecks(deadline) {
@@ -77,8 +89,10 @@
 
   function flush(deadline) {
     scheduled = false;
-    if (styleChanged) {
+    const now = Date.now();
+    if (styleChanged && now - lastRiskyRefresh > RISKY_REFRESH_MIN_MS) {
       riskyNames = collectRiskyNames();
+      lastRiskyRefresh = now;
       styleChanged = false;
     }
     if (riskyNames.size) {
@@ -97,31 +111,20 @@
   }
 
   riskyNames = collectRiskyNames();
+  lastRiskyRefresh = Date.now();
   enqueueSubtree(document.documentElement);
   schedule();
 
   new MutationObserver((mutations) => {
     for (const m of mutations) {
-      if (m.type === 'childList') {
-        m.addedNodes.forEach((node) => {
-          if (node.nodeType !== 1) return;
-          if (node.tagName === 'STYLE' || node.tagName === 'LINK') styleChanged = true;
-          enqueueSubtree(node);
-        });
-      } else {
-        // attribute change: only the target itself needs re-checking, not
-        // its subtree - descendants' own animations aren't affected by an
-        // ancestor's class/style flip.
-        toCheck.push(m.target);
-      }
+      m.addedNodes.forEach((node) => {
+        if (node.nodeType !== 1) return;
+        if (node.tagName === 'STYLE' || node.tagName === 'LINK') styleChanged = true;
+        enqueueSubtree(node);
+      });
     }
     schedule();
-  }).observe(document.documentElement, {
-    childList: true,
-    subtree: true,
-    attributes: true,
-    attributeFilter: ['class', 'style'],
-  });
+  }).observe(document.documentElement, { childList: true, subtree: true });
 
   chrome.runtime.onMessage.addListener((msg) => {
     if (msg?.type === 'yt-playing-changed') {
