@@ -2,7 +2,7 @@
 // tab while a "stressor" tab (different CSS/DOM-churn patterns) runs,
 // with and without the extension loaded, so we get a real pass/fail
 // number instead of "reload and see if it feels laggy".
-import './sync-extension.mjs';
+import { syncExtension } from './sync-extension.mjs';
 import { chromium } from 'playwright';
 import { serve } from 'bun';
 import path from 'node:path';
@@ -28,7 +28,7 @@ const server = serve({
 
 async function runOne({ withExtension, mode }) {
   const userDataDir = mkdtempSync(path.join(os.tmpdir(), 'yt-fix-pw-'));
-  const extPath = path.join(__dirname, 'test-extension');
+  const extPath = syncExtension();
   const args = withExtension
     ? [`--disable-extensions-except=${extPath}`, `--load-extension=${extPath}`]
     : [];

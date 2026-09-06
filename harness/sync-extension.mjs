@@ -10,11 +10,21 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const extDir = path.join(__dirname, '..');
 const testExtDir = path.join(__dirname, 'test-extension');
 
-for (const file of ['background.js', 'youtube-detector.js', 'animation-throttle.js']) {
-  copyFileSync(path.join(extDir, file), path.join(testExtDir, file));
-}
+export function syncExtension({ debug = false } = {}) {
+  for (const file of ['background.js', 'youtube-detector.js', 'animation-throttle.js']) {
+    copyFileSync(path.join(extDir, file), path.join(testExtDir, file));
+  }
 
-const manifest = JSON.parse(readFileSync(path.join(extDir, 'manifest.json'), 'utf8'));
-const ytScript = manifest.content_scripts.find((cs) => cs.js.includes('youtube-detector.js'));
-ytScript.matches = [...ytScript.matches, 'http://127.0.0.1:*/video-tab.html*'];
-writeFileSync(path.join(testExtDir, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
+  if (debug) {
+    const throttlePath = path.join(testExtDir, 'animation-throttle.js');
+    const src = readFileSync(throttlePath, 'utf8').replace('const DEBUG = false;', 'const DEBUG = true;');
+    writeFileSync(throttlePath, src);
+  }
+
+  const manifest = JSON.parse(readFileSync(path.join(extDir, 'manifest.json'), 'utf8'));
+  const ytScript = manifest.content_scripts.find((cs) => cs.js.includes('youtube-detector.js'));
+  ytScript.matches = [...ytScript.matches, 'http://127.0.0.1:*/video-tab.html*'];
+  writeFileSync(path.join(testExtDir, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
+
+  return testExtDir;
+}

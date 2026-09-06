@@ -1,4 +1,8 @@
 {
+  "scripts": {
+    "test": "bun test tests/",
+    "jank-matrix": "bun run run.mjs"
+  },
   "dependencies": {},
   "devDependencies": {
     "playwright": "^1.63.0"

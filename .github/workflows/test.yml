@@ -1,0 +1,37 @@
+name: Regression tests
+
+on:
+  push:
+    paths:
+      - "*.js"
+      - "manifest.json"
+      - "harness/**"
+      - ".github/workflows/test.yml"
+  pull_request:
+    paths:
+      - "*.js"
+      - "manifest.json"
+      - "harness/**"
+      - ".github/workflows/test.yml"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+
+      - name: Install harness dependencies
+        working-directory: harness
+        run: bun install
+
+      - name: Install Chromium
+        working-directory: harness
+        run: bunx playwright install --with-deps chromium
+
+      - name: Run tests (extension loading needs a real display)
+        working-directory: harness
+        run: xvfb-run --auto-servernum bun run test
