@@ -22,7 +22,7 @@
   const SAFE_PROPS = new Set(['transform', 'opacity']);
   const MAX_QUEUE = 3000;
   const RISKY_REFRESH_MIN_MS = 3000;
-  const DEBUG = true; // temporary - remove once the freeze is confirmed fixed
+  const DEBUG = false; // flip to true + reload for [yt-fix]-prefixed console diagnostics
   const log = (...args) => DEBUG && console.debug('[yt-fix]', ...args);
 
   const styleTag = document.createElement('style');

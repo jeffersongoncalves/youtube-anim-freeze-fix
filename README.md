@@ -20,13 +20,21 @@ use `transform`/`opacity` are compositor-only and don't cause this.
   reports play/pause state to the background worker.
 - `background.js`: tracks whether any tab has a YouTube video playing, and
   broadcasts that to every open tab.
-- `animation-throttle.js` (runs on every page, every frame): finds
+- `animation-throttle.js` (runs on every page's top document only): finds
   `@keyframes` rules that animate anything other than `transform`/`opacity`,
   tags matching elements, and pauses them (`animation-play-state: paused`)
   while a YouTube video is playing anywhere. Resumes them when it stops.
+  New elements are scanned in `requestIdleCallback` time slices, and a
+  container that redraws hundreds of nodes at once (virtualized widgets like
+  the Monaco editor behind Forge's deploy log) is blacklisted from further
+  scans after its first oversized batch, since re-scanning a live log on
+  every update was itself expensive enough to freeze the page.
 
 No data leaves the browser; `<all_urls>` is required only so the throttle
-script can run on whatever site has the offending animation.
+script can run on whatever site has the offending animation. Set `DEBUG =
+true` at the top of `animation-throttle.js` for `[yt-fix]`-prefixed console
+diagnostics (risky animations found, tagged elements, slow flushes, noisy
+containers blacklisted).
 
 ## Install (unpacked)
 
