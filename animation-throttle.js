@@ -68,7 +68,13 @@
   // single mutation record - the sync per-mutation version was expensive
   // enough (full re-scan on every <style>/<link> insertion) to itself
   // block the page.
-  const pendingNodes = new Set();
+  // childList additions need a full subtree scan (new, unseen elements).
+  // attribute changes only need the single changed element re-checked -
+  // NOT its subtree, since a class/style flip on one big container was
+  // triggering a full re-scan of everything under it, over and over,
+  // on a page (YouTube) that flips container classes constantly.
+  const pendingScan = new Set();
+  const pendingCheck = new Set();
   let styleChanged = false;
   let scheduled = false;
 
@@ -79,9 +85,11 @@
       styleChanged = false;
     }
     if (riskyNames.size) {
-      for (const node of pendingNodes) scan(node);
+      for (const node of pendingScan) scan(node);
+      for (const node of pendingCheck) check(node);
     }
-    pendingNodes.clear();
+    pendingScan.clear();
+    pendingCheck.clear();
   }
 
   function schedule() {
@@ -97,10 +105,10 @@
         m.addedNodes.forEach((node) => {
           if (node.nodeType !== 1) return;
           if (node.tagName === 'STYLE' || node.tagName === 'LINK') styleChanged = true;
-          pendingNodes.add(node);
+          pendingScan.add(node);
         });
       } else {
-        pendingNodes.add(m.target);
+        pendingCheck.add(m.target);
       }
     }
     schedule();
