@@ -63,20 +63,47 @@
 
   refreshAndScan();
 
+  // Sites like YouTube mutate the DOM constantly (SPA nav, live UI updates).
+  // Coalesce bursts into one debounced pass instead of re-scanning on every
+  // single mutation record - the sync per-mutation version was expensive
+  // enough (full re-scan on every <style>/<link> insertion) to itself
+  // block the page.
+  const pendingNodes = new Set();
+  let styleChanged = false;
+  let scheduled = false;
+
+  function flush() {
+    scheduled = false;
+    if (styleChanged) {
+      riskyNames = collectRiskyNames();
+      styleChanged = false;
+    }
+    if (riskyNames.size) {
+      for (const node of pendingNodes) scan(node);
+    }
+    pendingNodes.clear();
+  }
+
+  function schedule() {
+    if (scheduled) return;
+    scheduled = true;
+    const idle = window.requestIdleCallback || ((cb) => setTimeout(cb, 300));
+    idle(flush, { timeout: 1000 });
+  }
+
   new MutationObserver((mutations) => {
-    let styleAdded = false;
     for (const m of mutations) {
       if (m.type === 'childList') {
         m.addedNodes.forEach((node) => {
           if (node.nodeType !== 1) return;
-          if (node.tagName === 'STYLE' || node.tagName === 'LINK') styleAdded = true;
-          scan(node);
+          if (node.tagName === 'STYLE' || node.tagName === 'LINK') styleChanged = true;
+          pendingNodes.add(node);
         });
       } else {
-        check(m.target);
+        pendingNodes.add(m.target);
       }
     }
-    if (styleAdded) refreshAndScan();
+    schedule();
   }).observe(document.documentElement, {
     childList: true,
     subtree: true,
