@@ -22,6 +22,8 @@
   const SAFE_PROPS = new Set(['transform', 'opacity']);
   const MAX_QUEUE = 3000;
   const RISKY_REFRESH_MIN_MS = 3000;
+  const DEBUG = true; // temporary - remove once the freeze is confirmed fixed
+  const log = (...args) => DEBUG && console.debug('[yt-fix]', ...args);
 
   const styleTag = document.createElement('style');
   styleTag.textContent = `html.${FLAG} .${MARK} { animation-play-state: paused !important; }`;
@@ -55,6 +57,7 @@
         if (!safe) risky.add(rule.name);
       }
     }
+    log('keyframes scanned, risky names:', [...risky]);
     return risky;
   }
 
@@ -63,6 +66,7 @@
     const name = getComputedStyle(el).animationName;
     if (!name || name === 'none') return;
     if (name.split(', ').some((n) => riskyNames.has(n))) {
+      if (!el.classList.contains(MARK)) log('tagged risky element', el, name);
       el.classList.add(MARK);
     }
   }
@@ -89,17 +93,21 @@
 
   function flush(deadline) {
     scheduled = false;
+    const start = performance.now();
     const now = Date.now();
     if (styleChanged && now - lastRiskyRefresh > RISKY_REFRESH_MIN_MS) {
       riskyNames = collectRiskyNames();
       lastRiskyRefresh = now;
       styleChanged = false;
     }
+    const queueLenBefore = toCheck.length;
     if (riskyNames.size) {
       processChecks(deadline);
     } else {
       toCheck.length = 0;
     }
+    const took = performance.now() - start;
+    if (took > 16) log(`flush took ${took.toFixed(1)}ms, checked ${queueLenBefore - toCheck.length}/${queueLenBefore}, ${toCheck.length} left`);
     if (toCheck.length) schedule(); // ran out of idle time - finish next slice
   }
 
@@ -113,21 +121,26 @@
   riskyNames = collectRiskyNames();
   lastRiskyRefresh = Date.now();
   enqueueSubtree(document.documentElement);
+  log('initial queue size', toCheck.length);
   schedule();
 
   new MutationObserver((mutations) => {
+    let added = 0;
     for (const m of mutations) {
       m.addedNodes.forEach((node) => {
         if (node.nodeType !== 1) return;
+        added++;
         if (node.tagName === 'STYLE' || node.tagName === 'LINK') styleChanged = true;
         enqueueSubtree(node);
       });
     }
+    if (added > 50) log(`mutation batch added ${added} nodes, queue now ${toCheck.length}`);
     schedule();
   }).observe(document.documentElement, { childList: true, subtree: true });
 
   chrome.runtime.onMessage.addListener((msg) => {
     if (msg?.type === 'yt-playing-changed') {
+      log('yt-playing-changed', msg.playing);
       document.documentElement.classList.toggle(FLAG, !!msg.playing);
     }
   });
