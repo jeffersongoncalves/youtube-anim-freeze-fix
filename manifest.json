@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "YouTube Animation Freeze Fix",
-  "version": "2.4.0",
+  "version": "2.4.1",
   "description": "Fixes YouTube video freezing/buffering caused by CSS or SVG/SMIL animations looping infinitely on any open tab.",
   "permissions": ["tabs"],
   "host_permissions": ["<all_urls>"],
