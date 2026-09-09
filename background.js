@@ -14,7 +14,15 @@ function broadcast(playing) {
   });
 }
 
-chrome.runtime.onMessage.addListener((msg, sender) => {
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  // A tab opened after a video is already playing elsewhere never sees a
+  // broadcast - broadcast() only fires on a true/false transition, not for
+  // every new listener that shows up mid-state. Content scripts ask for
+  // the current state on load instead of waiting for one.
+  if (msg?.type === 'yt-get-state') {
+    sendResponse({ playing: playingTabs.size > 0 });
+    return;
+  }
   if (msg?.type !== 'yt-video-state' || sender.tab?.id == null) return;
   const before = playingTabs.size > 0;
   if (msg.playing) playingTabs.add(sender.tab.id);

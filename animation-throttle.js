@@ -176,4 +176,12 @@
       setVideoElsewhere(!!msg.playing);
     }
   });
+
+  // A video may already be playing elsewhere before this tab/page ever
+  // loaded - background only broadcasts on state transitions, so ask for
+  // the current state directly instead of waiting for one that already fired.
+  chrome.runtime?.sendMessage?.({ type: 'yt-get-state' }, (res) => {
+    if (chrome.runtime.lastError) return; // background gone / orphaned instance
+    if (res?.playing) setVideoElsewhere(true);
+  });
 })();
