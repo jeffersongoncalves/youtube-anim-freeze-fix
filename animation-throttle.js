@@ -30,14 +30,27 @@
   const log = (...args) => DEBUG && console.debug('[yt-fix]', ...args);
 
   const styleTag = document.createElement('style');
-  styleTag.textContent = `html.${FLAG} .${MARK} { animation-play-state: paused !important; }`;
+  styleTag.textContent = `html.${FLAG} .${MARK} { animation-play-state: var(--yt-fix-play-state, paused) !important; }`;
   document.documentElement.appendChild(styleTag);
 
+  // animation-name accepts a comma list (e.g. "fadeIn, pulse") and
+  // animation-play-state applies positionally across it - a single
+  // 'paused' value repeats for every entry. Blanket-pausing an element
+  // like that froze finite one-shot effects (entrance fades, etc.) mid-way
+  // whenever they shared an element with a genuinely infinite loop,
+  // breaking the effect. Only pause the entries that actually loop
+  // forever; leave finite ones running.
   function check(el) {
-    if (!el || el.nodeType !== 1) return;
-    const name = getComputedStyle(el).animationName;
+    if (!el || el.nodeType !== 1 || el.classList.contains(MARK)) return;
+    const cs = getComputedStyle(el);
+    const name = cs.animationName;
     if (!name || name === 'none') return;
-    if (!el.classList.contains(MARK)) log('tagged animated element', el, name);
+    const names = name.split(',').map((s) => s.trim());
+    const iterations = cs.animationIterationCount.split(',').map((s) => s.trim());
+    const playStates = names.map((_, i) => (iterations[i % iterations.length] === 'infinite' ? 'paused' : 'running'));
+    if (!playStates.includes('paused')) return; // all finite - not a compositor-contention risk
+    el.style.setProperty('--yt-fix-play-state', playStates.join(', '));
+    log('tagged animated element', el, name, playStates);
     el.classList.add(MARK);
   }
 
