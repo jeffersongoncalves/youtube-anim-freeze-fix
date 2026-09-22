@@ -1,23 +1,28 @@
+# Standard Dependabot config (dependabot-std).
+# Weekly, grouped, 7-day cooldown (time to catch a malicious release).
+
 version: 2
+
 updates:
-  - package-ecosystem: "github-actions"
-    directory: "/"
+
+  - package-ecosystem: github-actions
+    directory: /
     schedule:
-      interval: "weekly"
+      interval: weekly
     cooldown:
       default-days: 7
     groups:
-      all-actions:
+      actions-deps:
         patterns:
-          - "*"
+          - '*'
 
-  - package-ecosystem: "npm"
-    directory: "/harness"
+  - package-ecosystem: npm
+    directory: /harness
     schedule:
-      interval: "weekly"
+      interval: weekly
     cooldown:
       default-days: 7
     groups:
       all-npm:
         patterns:
-          - "*"
+          - '*'
